@@ -25,7 +25,18 @@ export default function AuthContent() {
     e.preventDefault();
     
     if (!supabase) {
-      toast.error('Authentication is not configured. Please set up Supabase.');
+      toast.error('Supabase is not configured. Please set up your Supabase credentials in .env.local', {
+        duration: 8000,
+      });
+      return;
+    }
+    
+    // Check if Supabase URL is still a placeholder
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    if (supabaseUrl.includes('your-project') || supabaseUrl.includes('placeholder')) {
+      toast.error('Please update your Supabase credentials in .env.local with your real project URL and key. See SETUP_SUPABASE_NOW.md for instructions.', {
+        duration: 10000,
+      });
       return;
     }
     
@@ -56,8 +67,21 @@ export default function AuthContent() {
         router.push('/face');
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Something went wrong';
-      toast.error(message);
+      let message = 'Something went wrong';
+      if (error instanceof Error) {
+        message = error.message;
+        // Handle network/Supabase configuration errors
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          if (supabaseUrl.includes('your-project') || supabaseUrl.includes('placeholder')) {
+            message = 'Supabase is not configured. Please update .env.local with your real Supabase credentials. See SETUP_SUPABASE_NOW.md';
+          } else {
+            message = 'Unable to connect to Supabase. Check: 1) Your Supabase project is active, 2) Your credentials are correct, 3) Your internet connection.';
+          }
+        }
+      }
+      toast.error(message, {
+        duration: 8000,
+      });
     } finally {
       setLoading(false);
     }
@@ -80,7 +104,14 @@ export default function AuthContent() {
 
       if (error) throw error;
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Something went wrong';
+      let message = 'Something went wrong';
+      if (error instanceof Error) {
+        message = error.message;
+        // Handle network/Supabase configuration errors
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          message = 'Unable to connect to authentication service. Please check your internet connection and ensure Supabase is configured.';
+        }
+      }
       toast.error(message);
       setLoading(false);
     }

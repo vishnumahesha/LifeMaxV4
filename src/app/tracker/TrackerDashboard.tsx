@@ -22,6 +22,8 @@ import {
   Clock,
   Target,
   TrendingUp,
+  Lock,
+  ArrowRight,
 } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
 import type { DailyMealsResponse, Meal, MealType, ConfidenceLevel, NutritionTargets } from '@/types/tracker';
@@ -333,14 +335,25 @@ export default function TrackerDashboard() {
       const result = await response.json();
       
       if (!result.ok) {
+        // Handle authentication errors gracefully
+        if (result.error?.code === 'UNAUTHORIZED' || result.error?.message?.includes('sign in')) {
+          setError('auth_required');
+          setData(null);
+          return;
+        }
         throw new Error(result.error?.message || 'Failed to fetch meals');
       }
       
       setData(result.data);
     } catch (err) {
       console.error('Fetch meals error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load meals');
-      toast.error('Failed to load meals');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to load meals';
+      if (errorMsg.includes('sign in') || errorMsg.includes('unauthorized')) {
+        setError('auth_required');
+      } else {
+        setError(errorMsg);
+        toast.error('Failed to load meals');
+      }
     } finally {
       setLoading(false);
     }
@@ -414,15 +427,41 @@ export default function TrackerDashboard() {
 
         {/* Error State */}
         {error && !loading && (
-          <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-xl text-center">
-            <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
-            <p className="text-red-400">{error}</p>
-            <button
-              onClick={fetchMeals}
-              className="mt-4 px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30"
-            >
-              Try Again
-            </button>
+          <div className={`p-6 rounded-xl text-center ${
+            error === 'auth_required' 
+              ? 'bg-violet-500/10 border border-violet-500/20' 
+              : 'bg-red-500/10 border border-red-500/20'
+          }`}>
+            {error === 'auth_required' ? (
+              <>
+                <Lock className="w-10 h-10 text-violet-400 mx-auto mb-3" />
+                <h3 className="text-lg font-semibold text-white mb-2">Sign In Required</h3>
+                <p className="text-zinc-400 mb-4">
+                  Please sign in to track your meals and view your nutrition data.
+                </p>
+                <Link href="/auth">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-violet-600 to-violet-500 text-white font-semibold rounded-xl shadow-lg shadow-violet-500/30"
+                  >
+                    Sign In
+                    <ArrowRight className="w-4 h-4" />
+                  </motion.button>
+                </Link>
+              </>
+            ) : (
+              <>
+                <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+                <p className="text-red-400">{error}</p>
+                <button
+                  onClick={fetchMeals}
+                  className="mt-4 px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30"
+                >
+                  Try Again
+                </button>
+              </>
+            )}
           </div>
         )}
 

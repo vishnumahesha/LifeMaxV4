@@ -521,6 +521,16 @@ export default function HomeContent() {
                       <ArrowRight className="w-5 h-5" />
                     </motion.button>
                   </Link>
+                  <Link href="/tracker">
+                    <motion.button
+                      whileHover={{ scale: 1.05, boxShadow: '0 0 40px rgba(34, 197, 94, 0.4)' }}
+                      whileTap={{ scale: 0.98 }}
+                      className="flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-green-600 to-green-500 text-white font-semibold rounded-full shadow-lg shadow-green-500/30 transition-all"
+                    >
+                      <span>🍎</span> Calorie Tracker
+                      <ArrowRight className="w-5 h-5" />
+                    </motion.button>
+                  </Link>
                   <Link href="#features">
                     <motion.button
                       whileHover={{ scale: 1.05 }}
@@ -563,7 +573,7 @@ export default function HomeContent() {
               </p>
             </motion.div>
 
-            <div className="grid md:grid-cols-2 gap-8">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
               <FeatureCard
                 icon="😊"
                 title="Face Analyzer"
@@ -590,6 +600,20 @@ export default function HomeContent() {
                 ]}
                 href="/body"
                 delay={0.2}
+                glowColor="green"
+              />
+              <FeatureCard
+                icon="🍎"
+                title="Calorie Tracker"
+                description="AI-powered meal logging with photo recognition and macro tracking."
+                features={[
+                  "Photo-based meal logging",
+                  "Barcode scanning",
+                  "Daily macro tracking",
+                  "Recipe builder & favorites"
+                ]}
+                href="/tracker"
+                delay={0.3}
                 glowColor="green"
               />
             </div>

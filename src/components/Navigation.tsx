@@ -9,6 +9,7 @@ import {
   ScanFace, 
   PersonStanding, 
   Dumbbell,
+  UtensilsCrossed,
   Menu,
   X,
   User,
@@ -21,6 +22,7 @@ const navItems = [
   { href: '/face', label: 'Face', icon: ScanFace, color: 'purple' },
   { href: '/body', label: 'Body', icon: PersonStanding, color: 'cyan' },
   { href: '/action', label: 'Action', icon: Dumbbell, color: 'orange' },
+  { href: '/tracker', label: 'Tracker', icon: UtensilsCrossed, color: 'green' },
 ];
 
 const colorClasses = {
@@ -35,6 +37,10 @@ const colorClasses = {
   orange: {
     active: 'text-orange-400 bg-orange-500/10 border-orange-500/30',
     glow: 'shadow-orange-500/20',
+  },
+  green: {
+    active: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+    glow: 'shadow-emerald-500/20',
   },
 };
 
