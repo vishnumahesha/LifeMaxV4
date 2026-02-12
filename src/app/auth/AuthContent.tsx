@@ -54,7 +54,18 @@ export default function AuthContent() {
 
         if (error) throw error;
 
-        toast.success('Check your email to confirm your account!');
+        // Check if user is automatically signed in (email confirmation may be disabled)
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          // User is automatically signed in
+          toast.success('Account created! Welcome to LifeMAX!');
+          router.push('/face');
+        } else {
+          // Email confirmation required
+          toast.success('Account created! Please check your email to confirm your account.', {
+            duration: 8000,
+          });
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
@@ -66,21 +77,33 @@ export default function AuthContent() {
         toast.success('Welcome back!');
         router.push('/face');
       }
-    } catch (error) {
+    } catch (error: any) {
       let message = 'Something went wrong';
-      if (error instanceof Error) {
-        message = error.message;
+      
+      // Handle Supabase error objects
+      if (error?.msg || error?.message) {
+        const errorMsg = error.msg || error.message || '';
+        
+        // Handle provider not enabled error
+        if (errorMsg.includes('provider is not enabled') || errorMsg.includes('Unsupported provider') || error?.error_code === 'validation_failed') {
+          message = 'Email authentication is not enabled in your Supabase project.\n\nTo fix this:\n1. Go to https://supabase.com/dashboard\n2. Select your project\n3. Go to Authentication → Providers\n4. Enable "Email" provider\n5. Click "Save changes"';
+        }
         // Handle network/Supabase configuration errors
-        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        else if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
           if (supabaseUrl.includes('your-project') || supabaseUrl.includes('placeholder')) {
             message = 'Supabase is not configured. Please update .env.local with your real Supabase credentials. See SETUP_SUPABASE_NOW.md';
           } else {
             message = 'Unable to connect to Supabase. Check: 1) Your Supabase project is active, 2) Your credentials are correct, 3) Your internet connection.';
           }
+        } else {
+          message = errorMsg;
         }
+      } else if (error instanceof Error) {
+        message = error.message;
       }
+      
       toast.error(message, {
-        duration: 8000,
+        duration: 12000,
       });
     } finally {
       setLoading(false);
@@ -103,16 +126,23 @@ export default function AuthContent() {
       });
 
       if (error) throw error;
-    } catch (error) {
+      // User will be redirected to Google, then back to /auth/callback
+    } catch (error: any) {
       let message = 'Something went wrong';
       if (error instanceof Error) {
         message = error.message;
+        // Handle provider not enabled error
+        if (error.message.includes('provider is not enabled') || error.message.includes('Unsupported provider')) {
+          message = 'Google sign-in is not enabled. Please enable it in Supabase Dashboard → Authentication → Providers → Google. See GOOGLE_OAUTH_SETUP.md for instructions.';
+        }
         // Handle network/Supabase configuration errors
-        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
           message = 'Unable to connect to authentication service. Please check your internet connection and ensure Supabase is configured.';
         }
       }
-      toast.error(message);
+      toast.error(message, {
+        duration: 10000,
+      });
       setLoading(false);
     }
   };
