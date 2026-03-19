@@ -11,6 +11,7 @@ import {
 } from '@/lib/reachability';
 import type { KibbeType } from '@/types/body';
 import { enhanceBodyImage } from '@/lib/replicate';
+import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
 
 export const maxDuration = 60;
 
@@ -63,6 +64,17 @@ interface BodyPreviewResponse {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting check
+    const clientIP = getClientIP(request);
+    const rateLimitResult = checkRateLimit(clientIP);
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        error(ErrorCodes.RATE_LIMITED, 'Rate limit exceeded. Please wait and try again.'),
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const validation = requestSchema.safeParse(body);
 

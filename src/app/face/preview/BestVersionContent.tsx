@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import Image from 'next/image';
 import {
   Wand2,
   Sparkles,
@@ -557,9 +558,9 @@ export default function BestVersionContent() {
             >
               {/* Photo Preview */}
               <div className="flex justify-center mb-6">
-                <div className="w-32 h-32 rounded-xl overflow-hidden border-2 border-pink-500/30">
+                <div className="w-32 h-32 rounded-xl overflow-hidden border-2 border-pink-500/30 relative">
                   {photoPreview && (
-                    <img src={photoPreview} alt="Your photo" className="w-full h-full object-cover" />
+                    <Image src={photoPreview} alt="Your photo" fill className="object-cover" unoptimized />
                   )}
                 </div>
               </div>
@@ -675,20 +676,22 @@ export default function BestVersionContent() {
                 <div className="grid grid-cols-2 gap-4 mb-6">
                   <div className="text-center">
                     <div className="text-sm text-zinc-500 mb-2">Current</div>
-                    <div className="aspect-square rounded-xl overflow-hidden border border-zinc-700">
+                    <div className="aspect-square rounded-xl overflow-hidden border border-zinc-700 relative">
                       {photoPreview && (
-                        <img src={photoPreview} alt="Current" className="w-full h-full object-cover" />
+                        <Image src={photoPreview} alt="Current" fill className="object-cover" unoptimized />
                       )}
                     </div>
                   </div>
                   <div className="text-center">
                     <div className="text-sm text-pink-400 mb-2">Best Version</div>
-                    <div className="aspect-square rounded-xl overflow-hidden border border-pink-500/30 bg-zinc-800">
+                    <div className="aspect-square rounded-xl overflow-hidden border border-pink-500/30 bg-zinc-800 relative">
                       {result.images[0]?.url ? (
-                        <img
+                        <Image
                           src={result.images[0].url.startsWith('data:') ? result.images[0].url : `data:image/png;base64,${result.images[0].url}`}
                           alt="Best Version"
-                          className="w-full h-full object-cover"
+                          fill
+                          className="object-cover"
+                          unoptimized
                         />
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-zinc-500 p-4">

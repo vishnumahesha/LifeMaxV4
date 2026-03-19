@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { FaceResultsUI } from '@/components/face/FaceResultsUI';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import type { FaceAnalysisResult } from '@/types/face';
 import type { ApiResult } from '@/types/api';
 
@@ -162,9 +163,10 @@ export default function FaceAnalyzerContent() {
   };
 
   return (
-    <AppShell>
-      <BackgroundOrbs />
-      <div className="relative min-h-screen px-4 py-8 pb-24">
+    <ErrorBoundary>
+      <AppShell>
+        <BackgroundOrbs />
+        <div className="relative min-h-screen px-4 py-8 pb-24">
         <div className="max-w-3xl mx-auto">
           {/* Header */}
           <motion.div
@@ -408,5 +410,6 @@ export default function FaceAnalyzerContent() {
         </div>
       </div>
     </AppShell>
+    </ErrorBoundary>
   );
 }

@@ -51,6 +51,11 @@ interface DbFood {
   created_at: string;
 }
 
+interface MealItemWithFood {
+  food_id: string | null;
+  foods: DbFood | null;
+}
+
 function dbFoodToFood(dbFood: DbFood): Food {
   return {
     id: dbFood.id,
@@ -127,7 +132,7 @@ export async function GET(request: NextRequest) {
 
     const foods = (foodsData || []).map(dbFoodToFood);
 
-    // Also get user's recent foods if logged in
+    // Also get user's recent foods if logged in (hard cap at 10)
     let recentFoods: Food[] = [];
     if (user) {
       const { data: recentData } = await supabase
@@ -135,15 +140,16 @@ export async function GET(request: NextRequest) {
         .select('food_id, foods(*)')
         .not('food_id', 'is', null)
         .order('created_at', { ascending: false })
-        .limit(5);
+        .limit(10);
 
       if (recentData) {
+        const typedRecentData = recentData as MealItemWithFood[];
         const seen = new Set<string>();
-        recentFoods = recentData
-          .filter(item => item.foods && !seen.has(item.food_id!))
+        recentFoods = typedRecentData
+          .filter(item => item.foods && item.food_id && !seen.has(item.food_id))
           .map(item => {
             seen.add(item.food_id!);
-            return dbFoodToFood(item.foods as unknown as DbFood);
+            return dbFoodToFood(item.foods!);
           });
       }
     }

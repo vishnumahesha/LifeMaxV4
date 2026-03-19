@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getVisionModel, base64ToGenerativePart, extractJSON } from '@/lib/gemini';
 import { success, error, ErrorCodes } from '@/types/api';
-import { 
-  ViewType, 
+import {
+  ViewType,
   PhotoValidation,
   ValidationErrorCodes,
-  RejectionMessages 
+  RejectionMessages
 } from '@/lib/scoring';
+import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
 
 export const maxDuration = 30; // Validation should be quick
 
@@ -98,6 +99,17 @@ Return ONLY the JSON.`;
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting check
+    const clientIP = getClientIP(request);
+    const rateLimitResult = checkRateLimit(clientIP);
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        error(ErrorCodes.RATE_LIMITED, 'Rate limit exceeded. Please wait and try again.'),
+        { status: 429 }
+      );
+    }
+
     // Parse request
     const body = await request.json();
     const validation = validatePhotoRequestSchema.safeParse(body);

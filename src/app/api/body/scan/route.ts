@@ -10,6 +10,7 @@ import {
   setCachedResult,
   CONFIDENCE_THRESHOLDS,
 } from '@/lib/scoring';
+import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
 
 export const maxDuration = 60;
 
@@ -18,6 +19,33 @@ const ENDPOINT_VERSION = '2.0.0';
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting check
+    const clientIP = getClientIP(request);
+    const rateLimitResult = checkRateLimit(clientIP);
+
+    if (!rateLimitResult.success) {
+      const resetDate = new Date(rateLimitResult.reset);
+      return NextResponse.json(
+        error(
+          ErrorCodes.RATE_LIMITED,
+          `Rate limit exceeded. Please try again in ${Math.ceil((rateLimitResult.reset - Date.now()) / 1000)} seconds.`,
+          {
+            retryAfter: Math.ceil((rateLimitResult.reset - Date.now()) / 1000),
+            resetAt: resetDate.toISOString()
+          }
+        ),
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': '10',
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': resetDate.toISOString(),
+            'Retry-After': Math.ceil((rateLimitResult.reset - Date.now()) / 1000).toString(),
+          }
+        }
+      );
+    }
+
     const body = await request.json();
     const validation = bodyScanRequestSchema.safeParse(body);
 
@@ -32,7 +60,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { frontPhotoBase64, sidePhotoBase64 } = validation.data;
+    const { frontPhotoBase64, sidePhotoBase64, backPhotoBase64 } = validation.data;
 
     // Compute image hash for caching and determinism
     const imageHash = computeImageHash(frontPhotoBase64);
@@ -58,7 +86,7 @@ export async function POST(request: NextRequest) {
     console.log('Image hash:', imageHash.slice(0, 8));
 
     const hasSidePhoto = !!sidePhotoBase64;
-    const hasBackPhoto = false; // Not implemented yet
+    const hasBackPhoto = !!backPhotoBase64;
     const prompt = buildBodyAnalysisPrompt(hasSidePhoto, hasBackPhoto);
 
     const imageParts = [
@@ -67,6 +95,10 @@ export async function POST(request: NextRequest) {
 
     if (sidePhotoBase64) {
       imageParts.push(base64ToGenerativePart(sidePhotoBase64, 'image/jpeg'));
+    }
+
+    if (backPhotoBase64) {
+      imageParts.push(base64ToGenerativePart(backPhotoBase64, 'image/jpeg'));
     }
 
     console.log('Calling Gemini API (temperature=0)...');
@@ -272,7 +304,14 @@ function postProcessBodyResult(
       confidence: overallConfidence,
       summary: raw.overall.summary,
     },
-    topLevers: raw.topLevers.slice(0, 3) as [typeof raw.topLevers[0], typeof raw.topLevers[0], typeof raw.topLevers[0]],
+    topLevers: (() => {
+      if (!raw.topLevers || raw.topLevers.length < 3) {
+        throw new Error(
+          `AI response validation failed: Expected at least 3 top levers, got ${raw.topLevers?.length ?? 0}`
+        );
+      }
+      return raw.topLevers.slice(0, 3) as [typeof raw.topLevers[0], typeof raw.topLevers[0], typeof raw.topLevers[0]];
+    })(),
   };
 }
 

@@ -4,6 +4,7 @@ import { success, error, ErrorCodes } from '@/types/api';
 import { CreateMealSchema, type Meal, type MealItem } from '@/types/tracker';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { validateCSRFToken } from '@/lib/csrf';
 
 export const maxDuration = 30;
 
@@ -144,7 +145,9 @@ export async function GET(request: NextRequest) {
     // Get date from query
     const { searchParams } = new URL(request.url);
     const dateStr = searchParams.get('date');
-    
+    const offsetParam = searchParams.get('offset');
+    const limitParam = searchParams.get('limit');
+
     if (!dateStr) {
       return NextResponse.json(
         error(ErrorCodes.VALIDATION_ERROR, 'Date parameter required (YYYY-MM-DD)'),
@@ -161,17 +164,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch meals for the date
+    // Parse pagination params with hard cap of 200
+    const offset = Math.max(0, parseInt(offsetParam || '0', 10));
+    const requestedLimit = parseInt(limitParam || '50', 10);
+    const limit = Math.min(Math.max(1, requestedLimit), 200);
+
+    // Fetch meals for the date with pagination
     const startOfDay = `${dateStr}T00:00:00.000Z`;
     const endOfDay = `${dateStr}T23:59:59.999Z`;
 
+    // Fetch one extra to detect if there are more results
     const { data: mealsData, error: mealsError } = await supabase
       .from('meals')
       .select('*')
       .eq('user_id', user.id)
       .gte('consumed_at', startOfDay)
       .lte('consumed_at', endOfDay)
-      .order('consumed_at', { ascending: true });
+      .order('consumed_at', { ascending: true })
+      .range(offset, offset + limit);
 
     if (mealsError) {
       console.error('Meals fetch error:', mealsError);
@@ -181,15 +191,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch items for all meals
-    const mealIds = (mealsData || []).map(m => m.id);
+    // Check if there are more results
+    const hasMore = (mealsData || []).length > limit;
+    const mealsToReturn = hasMore ? (mealsData || []).slice(0, limit) : (mealsData || []);
+    const nextOffset = hasMore ? offset + limit : null;
+
+    // Fetch items for all meals with hard cap
+    const mealIds = mealsToReturn.map(m => m.id);
     let itemsData: DbMealItem[] = [];
-    
+
     if (mealIds.length > 0) {
       const { data: items, error: itemsError } = await supabase
         .from('meal_items')
         .select('*')
-        .in('meal_id', mealIds);
+        .in('meal_id', mealIds)
+        .limit(200);
 
       if (itemsError) {
         console.error('Items fetch error:', itemsError);
@@ -206,7 +222,7 @@ export async function GET(request: NextRequest) {
     }, {} as Record<string, MealItem[]>);
 
     // Build meals with items
-    const meals = (mealsData || []).map(dbMeal => 
+    const meals = mealsToReturn.map(dbMeal =>
       dbMealToMeal(dbMeal, itemsByMeal[dbMeal.id] || [])
     );
 
@@ -266,6 +282,12 @@ export async function GET(request: NextRequest) {
       totals,
       dayConfidence: Math.round(dayConfidence * 100) / 100,
       targets,
+      pagination: {
+        offset,
+        limit,
+        hasMore,
+        nextOffset,
+      },
     }));
   } catch (err) {
     console.error('GET meals error:', err);
@@ -282,8 +304,17 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // CSRF protection
+    const isValidCSRF = await validateCSRFToken(request);
+    if (!isValidCSRF) {
+      return NextResponse.json(
+        error(ErrorCodes.FORBIDDEN, 'Invalid CSRF token'),
+        { status: 403 }
+      );
+    }
+
     const supabase = await getAuthClient();
-    
+
     // Check auth
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {

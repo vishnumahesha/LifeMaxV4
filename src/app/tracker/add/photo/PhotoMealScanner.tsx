@@ -4,6 +4,8 @@ import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import { useCSRF, addCSRFToken } from '@/lib/hooks/useCSRF';
 import {
   Camera,
   Upload,
@@ -22,6 +24,7 @@ import {
   Edit3,
 } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import type { MealDraft, MealItemDraft, MealType, ConfidenceLevel } from '@/types/tracker';
 import { getConfidenceLevel, getConfidenceColor, getConfidenceBgColor } from '@/types/tracker';
 
@@ -325,7 +328,8 @@ function MealTypeSelector({ value, onChange }: { value: MealType; onChange: (v: 
 export default function PhotoMealScanner() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+  const { token: csrfToken, loading: csrfLoading, error: csrfError } = useCSRF();
+
   const [state, setState] = useState<PageState>('capture');
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [userNotes, setUserNotes] = useState('');
@@ -420,8 +424,13 @@ export default function PhotoMealScanner() {
   const handleConfirmLog = async () => {
     if (!draft || items.length === 0) return;
 
+    if (!csrfToken) {
+      toast.error('Security token not ready. Please wait a moment and try again.');
+      return;
+    }
+
     try {
-      const response = await fetch('/api/meals', {
+      const response = await fetch('/api/meals', addCSRFToken(csrfToken, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -452,7 +461,7 @@ export default function PhotoMealScanner() {
             refinementSource: userNotes ? 'photo_plus_notes' : 'photo_only',
           })),
         }),
-      });
+      }));
 
       const data = await response.json();
 
@@ -475,10 +484,11 @@ export default function PhotoMealScanner() {
     : 0;
 
   return (
-    <AppShell>
-      <BackgroundOrbs />
+    <ErrorBoundary>
+      <AppShell>
+        <BackgroundOrbs />
 
-      <div className="max-w-2xl mx-auto px-4 py-6 relative z-10">
+        <div className="max-w-2xl mx-auto px-4 py-6 relative z-10">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
           <button
@@ -513,10 +523,12 @@ export default function PhotoMealScanner() {
                 }`}
               >
                 {photoPreview ? (
-                  <img
+                  <Image
                     src={photoPreview}
                     alt="Meal preview"
-                    className="w-full h-full object-cover"
+                    fill
+                    className="object-cover"
+                    unoptimized
                   />
                 ) : (
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -608,9 +620,9 @@ export default function PhotoMealScanner() {
             >
               {/* Photo + Summary */}
               <div className="flex gap-4">
-                <div className="w-24 h-24 rounded-xl overflow-hidden flex-shrink-0">
+                <div className="w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 relative">
                   {photoPreview && (
-                    <img src={photoPreview} alt="Meal" className="w-full h-full object-cover" />
+                    <Image src={photoPreview} alt="Meal" fill className="object-cover" unoptimized />
                   )}
                 </div>
                 <div className="flex-1">
@@ -727,5 +739,6 @@ export default function PhotoMealScanner() {
         </AnimatePresence>
       </div>
     </AppShell>
+    </ErrorBoundary>
   );
 }

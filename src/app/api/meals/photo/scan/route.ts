@@ -5,6 +5,7 @@ import { computeImageHash, computeNotesHash, computeCombinedHash } from '@/lib/t
 import { getMealScanPrompt, getFoodValidationPrompt } from '@/lib/tracker/prompts';
 import { createClient } from '@supabase/supabase-js';
 import type { MealDraft, MealItemDraft, MealType } from '@/types/tracker';
+import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
 
 export const maxDuration = 60;
 
@@ -104,35 +105,64 @@ async function setCachedScan(
 // IMAGE UPLOAD
 // ============================================
 
+/**
+ * Retry helper with exponential backoff
+ */
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxAttempts: number = 3,
+  delayMs: number = 1000
+): Promise<T> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+
+      if (attempt < maxAttempts) {
+        const backoffDelay = delayMs * Math.pow(2, attempt - 1);
+        console.log(`Attempt ${attempt} failed, retrying in ${backoffDelay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, backoffDelay));
+      }
+    }
+  }
+
+  throw lastError || new Error('Max retry attempts reached');
+}
+
 async function uploadPhotoToStorage(
   imageBase64: string,
   scanHash: string
 ): Promise<string> {
-  const supabase = getSupabaseAdmin();
-  
-  // Remove data URL prefix
-  const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-  const buffer = Buffer.from(base64Data, 'base64');
-  
-  const filePath = `meals/${scanHash}.jpg`;
-  
-  const { error: uploadError } = await supabase.storage
-    .from('meal-photos')
-    .upload(filePath, buffer, {
-      contentType: 'image/jpeg',
-      upsert: true,
-    });
+  return retryWithBackoff(async () => {
+    const supabase = getSupabaseAdmin();
 
-  if (uploadError) {
-    console.error('Photo upload error:', uploadError);
-    throw new Error('Failed to upload photo');
-  }
+    // Remove data URL prefix
+    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
 
-  const { data: urlData } = supabase.storage
-    .from('meal-photos')
-    .getPublicUrl(filePath);
+    const filePath = `meals/${scanHash}.jpg`;
 
-  return urlData.publicUrl;
+    const { error: uploadError } = await supabase.storage
+      .from('meal-photos')
+      .upload(filePath, buffer, {
+        contentType: 'image/jpeg',
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error('Photo upload error:', uploadError);
+      throw new Error('Failed to upload photo');
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('meal-photos')
+      .getPublicUrl(filePath);
+
+    return urlData.publicUrl;
+  }, 3); // 3 attempts total (1 initial + 2 retries)
 }
 
 // ============================================
@@ -244,6 +274,17 @@ function convertToDraft(
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting check
+    const clientIP = getClientIP(request);
+    const rateLimitResult = checkRateLimit(clientIP);
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        error(ErrorCodes.RATE_LIMITED, 'Rate limit exceeded. Please wait and try again.'),
+        { status: 429 }
+      );
+    }
+
     // Parse multipart form data
     const formData = await request.formData();
     const file = formData.get('file') as File | null;

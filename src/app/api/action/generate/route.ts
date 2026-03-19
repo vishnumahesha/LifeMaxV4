@@ -4,6 +4,7 @@ import { success, error, ErrorCodes } from '@/types/api';
 import type { ActionPlan, MacroTargets, WorkoutPlan, WorkoutDay, Exercise } from '@/types/body';
 import { buildActionPlanPrompt } from '@/lib/prompts/action-plan';
 import { z } from 'zod';
+import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
 
 const requestSchema = z.object({
   stats: z.object({
@@ -49,6 +50,26 @@ interface AIActionPlanResponse {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting check
+    const clientIP = getClientIP(request);
+    const rateLimitResult = checkRateLimit(clientIP);
+
+    if (!rateLimitResult.success) {
+      const resetDate = new Date(rateLimitResult.reset);
+      return NextResponse.json(
+        error(
+          ErrorCodes.RATE_LIMITED,
+          `Rate limit exceeded. Please try again in ${Math.ceil((rateLimitResult.reset - Date.now()) / 1000)} seconds.`
+        ),
+        {
+          status: 429,
+          headers: {
+            'Retry-After': Math.ceil((rateLimitResult.reset - Date.now()) / 1000).toString(),
+          }
+        }
+      );
+    }
+
     const body = await request.json();
     const validation = requestSchema.safeParse(body);
 

@@ -7,6 +7,7 @@ import { User, ArrowRight, RefreshCw, Sparkles, Zap, Target, Ruler, Dumbbell } f
 import { AppShell } from '@/components/AppShell';
 import { PhotoUpload } from '@/components/PhotoUpload';
 import { BodyResultsUI } from '@/components/body/BodyResultsUI';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import type { BodyAnalysisResult } from '@/types/body';
 import type { ApiResult } from '@/types/api';
 
@@ -150,9 +151,10 @@ export default function BodyAnalyzerContent() {
   };
 
   return (
-    <AppShell>
-      <BackgroundOrbs />
-      <div className="relative min-h-screen px-4 py-8 pb-24">
+    <ErrorBoundary>
+      <AppShell>
+        <BackgroundOrbs />
+        <div className="relative min-h-screen px-4 py-8 pb-24">
         <div className="max-w-3xl mx-auto">
           {/* Header */}
           <motion.div
@@ -433,5 +435,6 @@ export default function BodyAnalyzerContent() {
         </div>
       </div>
     </AppShell>
+    </ErrorBoundary>
   );
 }

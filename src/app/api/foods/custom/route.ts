@@ -3,6 +3,7 @@ import { success, error, ErrorCodes } from '@/types/api';
 import { CreateCustomFoodSchema, type Food } from '@/types/tracker';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { validateCSRFToken } from '@/lib/csrf';
 
 export const maxDuration = 15;
 
@@ -36,8 +37,17 @@ async function getAuthClient() {
 
 export async function POST(request: NextRequest) {
   try {
+    // CSRF protection
+    const isValidCSRF = await validateCSRFToken(request);
+    if (!isValidCSRF) {
+      return NextResponse.json(
+        error(ErrorCodes.FORBIDDEN, 'Invalid CSRF token'),
+        { status: 403 }
+      );
+    }
+
     const supabase = await getAuthClient();
-    
+
     // Check auth
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {

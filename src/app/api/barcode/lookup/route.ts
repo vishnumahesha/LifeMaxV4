@@ -98,6 +98,27 @@ function mapOpenFoodFactsToFood(product: OpenFoodFactsProduct): Omit<Food, 'id' 
 // CACHE HELPERS
 // ============================================
 
+interface DbFood {
+  id: string;
+  source: string;
+  external_id?: string;
+  name: string;
+  brand?: string;
+  serving_size_g?: number;
+  calories_per_100g?: number;
+  protein_per_100g?: number;
+  carbs_per_100g?: number;
+  fats_per_100g?: number;
+  fiber_per_100g?: number;
+  created_by?: string;
+  created_at: string;
+}
+
+interface BarcodeCacheRow {
+  food_id: string;
+  foods: DbFood | null;
+}
+
 async function getCachedBarcode(barcode: string): Promise<Food | null> {
   try {
     const supabase = getSupabaseAdmin();
@@ -109,21 +130,8 @@ async function getCachedBarcode(barcode: string): Promise<Food | null> {
 
     if (dbError || !data || !data.foods) return null;
 
-    const food = data.foods as unknown as {
-      id: string;
-      source: string;
-      external_id?: string;
-      name: string;
-      brand?: string;
-      serving_size_g?: number;
-      calories_per_100g?: number;
-      protein_per_100g?: number;
-      carbs_per_100g?: number;
-      fats_per_100g?: number;
-      fiber_per_100g?: number;
-      created_by?: string;
-      created_at: string;
-    };
+    const typedData = data as BarcodeCacheRow;
+    const food = typedData.foods;
 
     return {
       id: food.id,

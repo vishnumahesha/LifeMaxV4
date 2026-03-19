@@ -104,7 +104,22 @@ export function extractJSON<T>(text: string): T {
 
 // Extract base64 image from response
 // Handles both GenerateContentResponse objects and raw response structures
-export function extractImageFromResponse(response: any): string | null {
+interface ImageResponseCandidate {
+  content?: {
+    parts?: Array<{
+      inlineData?: {
+        mimeType: string;
+        data: string;
+      };
+    }>;
+  };
+}
+
+interface ImageResponse {
+  candidates?: ImageResponseCandidate[] | (() => ImageResponseCandidate[]);
+}
+
+export function extractImageFromResponse(response: ImageResponse): string | null {
   try {
     // Try to get candidates from response
     let candidates = response.candidates;

@@ -174,9 +174,9 @@ async function withRetry<T>(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
-    } catch (error: any) {
-      lastError = error;
-      const errorMsg = error?.message || String(error);
+    } catch (error: unknown) {
+      lastError = error as Error;
+      const errorMsg = error instanceof Error ? error.message : String(error);
       
       // If it's a rate limit, wait before retrying
       if (errorMsg.includes('429') || errorMsg.includes('rate') || errorMsg.includes('limit')) {
@@ -252,10 +252,11 @@ export async function enhanceFaceImage(
       console.log('IP-Adapter FaceID enhancement completed');
       return result;
     }
-  } catch (ipError: any) {
-    console.error('IP-Adapter FaceID failed:', ipError?.message || ipError);
+  } catch (ipError: unknown) {
+    const errorMessage = ipError instanceof Error ? ipError.message : String(ipError);
+    console.error('IP-Adapter FaceID failed:', errorMessage);
     // Re-throw rate limit errors so they can be handled properly
-    const errorMsg = ipError?.message || String(ipError);
+    const errorMsg = errorMessage;
     if (errorMsg.includes('429') || errorMsg.includes('rate') || errorMsg.includes('limit')) {
       throw ipError;
     }
@@ -288,8 +289,9 @@ export async function enhanceFaceImage(
       console.log('InstantID enhancement completed');
       return result;
     }
-  } catch (instantError: any) {
-    console.error('InstantID failed:', instantError?.message || instantError);
+  } catch (instantError: unknown) {
+    const errorMessage = instantError instanceof Error ? instantError.message : String(instantError);
+    console.error('InstantID failed:', errorMessage);
   }
   
   // Final fallback: Enhanced GFPGAN with better settings
