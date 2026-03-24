@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTextModel, extractJSON } from '@/lib/gemini';
+import { createTextMessage, extractJSON } from '@/lib/anthropic';
 import { success, error, ErrorCodes } from '@/types/api';
 import type { ActionPlan, MacroTargets, WorkoutPlan, WorkoutDay, Exercise } from '@/types/body';
 import { buildActionPlanPrompt } from '@/lib/prompts/action-plan';
@@ -86,9 +86,9 @@ export async function POST(request: NextRequest) {
 
     const { stats, goal, targetAreas } = validation.data;
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json(
-        error(ErrorCodes.SERVER_ERROR, 'AI service not configured. Please add GEMINI_API_KEY.'),
+        error(ErrorCodes.SERVER_ERROR, 'AI service not configured. Please add ANTHROPIC_API_KEY.'),
         { status: 500 }
       );
     }
@@ -104,23 +104,22 @@ export async function POST(request: NextRequest) {
       targetAreas,
     });
 
-    console.log('Calling Gemini API...');
-    const model = getTextModel();
-    
-    let result;
+    console.log('Calling Claude API...');
+
+    let text;
     try {
-      result = await model.generateContent(prompt);
+      text = await createTextMessage(prompt);
     } catch (apiError) {
-      console.error('Gemini API call failed:', apiError);
+      console.error('Claude API call failed:', apiError);
       const errorMessage = apiError instanceof Error ? apiError.message : 'Unknown error';
-      
-      if (errorMessage.includes('API_KEY_INVALID') || errorMessage.includes('invalid')) {
+
+      if (errorMessage.includes('API_KEY_INVALID') || errorMessage.includes('invalid') || errorMessage.includes('authentication')) {
         return NextResponse.json(
-          error(ErrorCodes.SERVER_ERROR, 'Invalid API key. Please check your GEMINI_API_KEY configuration.'),
+          error(ErrorCodes.SERVER_ERROR, 'Invalid API key. Please check your ANTHROPIC_API_KEY configuration.'),
           { status: 500 }
         );
       }
-      
+
       if (errorMessage.includes('quota') || errorMessage.includes('rate') || errorMessage.includes('429')) {
         return NextResponse.json(
           error(ErrorCodes.RATE_LIMITED, 'API rate limit reached. Please wait a minute and try again.'),
@@ -133,10 +132,8 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-    
-    const response = await result.response;
-    const text = response.text();
-    console.log('Received response from Gemini, length:', text.length);
+
+    console.log('Received response from Claude, length:', text.length);
 
     let planData: ActionPlan;
     try {

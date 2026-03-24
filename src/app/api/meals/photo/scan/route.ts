@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getVisionModel, base64ToGenerativePart, extractJSON } from '@/lib/gemini';
+import { createVisionMessage, extractJSON } from '@/lib/anthropic';
 import { success, error, ErrorCodes } from '@/types/api';
 import { computeImageHash, computeNotesHash, computeCombinedHash } from '@/lib/tracker/hash';
 import { getMealScanPrompt, getFoodValidationPrompt } from '@/lib/tracker/prompts';
@@ -171,10 +171,10 @@ async function uploadPhotoToStorage(
 
 async function validateIsFood(imageBase64: string): Promise<FoodValidation> {
   try {
-    const model = getVisionModel();
-    const imagePart = base64ToGenerativePart(imageBase64, 'image/jpeg');
-    const result = await model.generateContent([getFoodValidationPrompt(), imagePart]);
-    const text = result.response.text();
+    const text = await createVisionMessage(
+      getFoodValidationPrompt(),
+      [{ base64: imageBase64, mediaType: 'image/jpeg' }]
+    );
     return extractJSON<FoodValidation>(text);
   } catch {
     // If validation fails, assume it's food and let the main scan handle it
@@ -190,13 +190,13 @@ async function scanMealPhoto(
   imageBase64: string,
   userNotes?: string
 ): Promise<AIScanResult> {
-  const model = getVisionModel();
-  const imagePart = base64ToGenerativePart(imageBase64, 'image/jpeg');
   const prompt = getMealScanPrompt(userNotes);
 
-  const result = await model.generateContent([prompt, imagePart]);
-  const text = result.response.text();
-  
+  const text = await createVisionMessage(
+    prompt,
+    [{ base64: imageBase64, mediaType: 'image/jpeg' }]
+  );
+
   const parsed = extractJSON<AIScanResult>(text);
   
   // Validate and sanitize response

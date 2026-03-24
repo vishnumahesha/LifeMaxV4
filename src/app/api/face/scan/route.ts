@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getVisionModel, base64ToGenerativePart, extractJSON } from '@/lib/gemini';
+import { createVisionMessage, extractJSON } from '@/lib/anthropic';
 import { faceScanRequestSchema, faceAnalysisResultSchema } from '@/lib/validations/face';
 import { success, error, ErrorCodes } from '@/types/api';
 import type { FaceAnalysisResult } from '@/types/face';
@@ -76,11 +76,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check API key
-    if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json(
         error(
           ErrorCodes.SERVER_ERROR,
-          'AI service not configured. Please add GEMINI_API_KEY to environment variables.'
+          'AI service not configured. Please add ANTHROPIC_API_KEY to environment variables.'
         ),
         { status: 500 }
       );
@@ -92,36 +92,32 @@ export async function POST(request: NextRequest) {
     // Build prompt
     const prompt = buildFaceAnalysisPrompt(!!sidePhotoBase64);
 
-    // Prepare image parts
-    const imageParts = [
-      base64ToGenerativePart(frontPhotoBase64, 'image/jpeg'),
-    ];
-
+    // Prepare images
+    const images = [{ base64: frontPhotoBase64, mediaType: 'image/jpeg' }];
     if (sidePhotoBase64) {
-      imageParts.push(base64ToGenerativePart(sidePhotoBase64, 'image/jpeg'));
+      images.push({ base64: sidePhotoBase64, mediaType: 'image/jpeg' });
     }
 
-    // Call Gemini API with temperature=0 for determinism
-    console.log('Calling Gemini API (temperature=0)...');
-    const model = getVisionModel();
-    
-    let result;
+    // Call Claude API with temperature=0 for determinism
+    console.log('Calling Claude API (temperature=0)...');
+
+    let text;
     try {
-      result = await model.generateContent([prompt, ...imageParts]);
+      text = await createVisionMessage(prompt, images);
     } catch (apiError) {
-      console.error('Gemini API call failed:', apiError);
+      console.error('Claude API call failed:', apiError);
       const errorMessage = apiError instanceof Error ? apiError.message : 'Unknown error';
-      
-      if (errorMessage.includes('API_KEY_INVALID') || errorMessage.includes('invalid')) {
+
+      if (errorMessage.includes('API_KEY_INVALID') || errorMessage.includes('invalid') || errorMessage.includes('authentication')) {
         return NextResponse.json(
           error(
             ErrorCodes.SERVER_ERROR,
-            'Invalid API key. Please check your GEMINI_API_KEY configuration.'
+            'Invalid API key. Please check your ANTHROPIC_API_KEY configuration.'
           ),
           { status: 500 }
         );
       }
-      
+
       if (errorMessage.includes('quota') || errorMessage.includes('rate') || errorMessage.includes('429')) {
         return NextResponse.json(
           error(
@@ -131,12 +127,12 @@ export async function POST(request: NextRequest) {
           { status: 429 }
         );
       }
-      
-      if (errorMessage.includes('SAFETY') || errorMessage.includes('blocked')) {
+
+      if (errorMessage.includes('content_policy') || errorMessage.includes('blocked')) {
         return NextResponse.json(
           error(
             ErrorCodes.ANALYSIS_FAILED,
-            'Image was blocked by safety filters. Please try a different photo.'
+            'Image was blocked by content policy. Please try a different photo.'
           ),
           { status: 400 }
         );
@@ -150,10 +146,8 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-    
-    const response = await result.response;
-    const text = response.text();
-    console.log('Received response from Gemini, length:', text.length);
+
+    console.log('Received response from Claude, length:', text.length);
 
     // Parse JSON response
     let analysisData: FaceAnalysisResult;

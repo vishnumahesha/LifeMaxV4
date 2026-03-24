@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getVisionModel, base64ToGenerativePart, extractJSON } from '@/lib/gemini';
+import { createVisionMessage, extractJSON } from '@/lib/anthropic';
 import { success, error, ErrorCodes } from '@/types/api';
 import {
   ViewType,
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     const { photoBase64, expectedView } = validation.data;
 
     // Check API key
-    if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json(
         error(ErrorCodes.SERVER_ERROR, 'AI service not configured'),
         { status: 500 }
@@ -136,31 +136,28 @@ export async function POST(request: NextRequest) {
     }
 
     // Call AI for validation
-    const model = getVisionModel();
-    const imageParts = [base64ToGenerativePart(photoBase64, 'image/jpeg')];
-
-    let result;
+    let text;
     try {
-      result = await model.generateContent([VALIDATION_PROMPT, ...imageParts]);
+      text = await createVisionMessage(
+        VALIDATION_PROMPT,
+        [{ base64: photoBase64, mediaType: 'image/jpeg' }]
+      );
     } catch (apiError) {
       console.error('Validation API error:', apiError);
       const errorMessage = apiError instanceof Error ? apiError.message : 'Unknown';
-      
+
       if (errorMessage.includes('quota') || errorMessage.includes('rate')) {
         return NextResponse.json(
           error(ErrorCodes.RATE_LIMITED, 'Please wait and try again'),
           { status: 429 }
         );
       }
-      
+
       return NextResponse.json(
         error(ErrorCodes.SERVER_ERROR, 'Validation service unavailable'),
         { status: 500 }
       );
     }
-
-    const response = await result.response;
-    const text = response.text();
 
     let aiResult: AIValidationResponse;
     try {

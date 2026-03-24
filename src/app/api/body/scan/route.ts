@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getVisionModel, base64ToGenerativePart, extractJSON } from '@/lib/gemini';
+import { createVisionMessage, extractJSON } from '@/lib/anthropic';
 import { bodyScanRequestSchema, bodyAnalysisResultSchema } from '@/lib/validations/body';
 import { success, error, ErrorCodes } from '@/types/api';
 import type { BodyAnalysisResult } from '@/types/body';
@@ -72,11 +72,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(success(cachedResult));
     }
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json(
         error(
           ErrorCodes.SERVER_ERROR,
-          'AI service not configured. Please add GEMINI_API_KEY to environment variables.'
+          'AI service not configured. Please add ANTHROPIC_API_KEY to environment variables.'
         ),
         { status: 500 }
       );
@@ -89,38 +89,33 @@ export async function POST(request: NextRequest) {
     const hasBackPhoto = !!backPhotoBase64;
     const prompt = buildBodyAnalysisPrompt(hasSidePhoto, hasBackPhoto);
 
-    const imageParts = [
-      base64ToGenerativePart(frontPhotoBase64, 'image/jpeg'),
-    ];
-
+    const images = [{ base64: frontPhotoBase64, mediaType: 'image/jpeg' }];
     if (sidePhotoBase64) {
-      imageParts.push(base64ToGenerativePart(sidePhotoBase64, 'image/jpeg'));
+      images.push({ base64: sidePhotoBase64, mediaType: 'image/jpeg' });
     }
-
     if (backPhotoBase64) {
-      imageParts.push(base64ToGenerativePart(backPhotoBase64, 'image/jpeg'));
+      images.push({ base64: backPhotoBase64, mediaType: 'image/jpeg' });
     }
 
-    console.log('Calling Gemini API (temperature=0)...');
-    const model = getVisionModel();
-    
-    let result;
+    console.log('Calling Claude API (temperature=0)...');
+
+    let text;
     try {
-      result = await model.generateContent([prompt, ...imageParts]);
+      text = await createVisionMessage(prompt, images);
     } catch (apiError) {
-      console.error('Gemini API call failed:', apiError);
+      console.error('Claude API call failed:', apiError);
       const errorMessage = apiError instanceof Error ? apiError.message : 'Unknown error';
-      
-      if (errorMessage.includes('API_KEY_INVALID') || errorMessage.includes('invalid')) {
+
+      if (errorMessage.includes('API_KEY_INVALID') || errorMessage.includes('invalid') || errorMessage.includes('authentication')) {
         return NextResponse.json(
           error(
             ErrorCodes.SERVER_ERROR,
-            'Invalid API key. Please check your GEMINI_API_KEY configuration.'
+            'Invalid API key. Please check your ANTHROPIC_API_KEY configuration.'
           ),
           { status: 500 }
         );
       }
-      
+
       if (errorMessage.includes('quota') || errorMessage.includes('rate') || errorMessage.includes('429')) {
         return NextResponse.json(
           error(
@@ -130,12 +125,12 @@ export async function POST(request: NextRequest) {
           { status: 429 }
         );
       }
-      
-      if (errorMessage.includes('SAFETY') || errorMessage.includes('blocked')) {
+
+      if (errorMessage.includes('content_policy') || errorMessage.includes('blocked')) {
         return NextResponse.json(
           error(
             ErrorCodes.ANALYSIS_FAILED,
-            'Image was blocked by safety filters. Please try a different photo.'
+            'Image was blocked by content policy. Please try a different photo.'
           ),
           { status: 400 }
         );
@@ -149,10 +144,8 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-    
-    const response = await result.response;
-    const text = response.text();
-    console.log('Received response from Gemini, length:', text.length);
+
+    console.log('Received response from Claude, length:', text.length);
 
     let analysisData: BodyAnalysisResult;
     try {

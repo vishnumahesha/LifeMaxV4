@@ -40,8 +40,8 @@ npm install
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 
-# Gemini API Key (SERVER-SIDE ONLY)
-GEMINI_API_KEY=your_gemini_api_key
+# Anthropic/Claude API Key (SERVER-SIDE ONLY)
+ANTHROPIC_API_KEY=your_anthropic_api_key
 
 # Site URL (for auth redirects)
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
@@ -69,12 +69,12 @@ npm run dev
 |----------|----------|-------------|
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Your Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous/public key |
-| `GEMINI_API_KEY` | Yes | Google Gemini API key (server-side only!) |
+| `ANTHROPIC_API_KEY` | Yes | Anthropic Claude API key (server-side only!) |
 | `NEXT_PUBLIC_SITE_URL` | Optional | Your site URL for auth callbacks |
 
 ## Security Notes
 
-- **GEMINI_API_KEY is NEVER exposed to the client**. It's only used in API routes (server-side).
+- **ANTHROPIC_API_KEY is NEVER exposed to the client**. It's only used in API routes (server-side).
 - All API routes validate input with Zod schemas
 - Supabase RLS policies ensure users can only access their own data
 - Photo processing happens server-side through the Gemini Vision API
