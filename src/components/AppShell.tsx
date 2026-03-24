@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navigation } from './Navigation';
+import { PageTransition } from './PageTransition';
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 
@@ -79,12 +80,14 @@ export function AppShell({ children, requireAuth = false }: AppShellProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation 
-        user={user ? { email: user.email || '' } : null} 
-        onSignOut={handleSignOut} 
+      <Navigation
+        user={user ? { email: user.email || '' } : null}
+        onSignOut={handleSignOut}
       />
       <main className="pt-16">
-        {children}
+        <PageTransition>
+          {children}
+        </PageTransition>
       </main>
     </div>
   );

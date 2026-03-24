@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { useCountUp } from '@/hooks/useCountUp';
 import { 
   TrendingUp, 
   Sparkles,
@@ -27,31 +28,33 @@ interface BodyResultsUIProps {
 }
 
 // Score Circle Component
-function ScoreCircle({ 
-  score, 
-  label, 
+function ScoreCircle({
+  score,
+  label,
   sublabel,
   size = 'lg',
   color = 'cyan'
-}: { 
-  score: number; 
+}: {
+  score: number;
   label: string;
   sublabel?: string;
   size?: 'sm' | 'md' | 'lg';
   color?: 'cyan' | 'teal' | 'orange';
 }) {
+  const animatedScore = useCountUp(score, 400, 0, 1);
+
   const sizes = {
     sm: { width: 100, stroke: 6, textSize: 'text-2xl' },
     md: { width: 140, stroke: 8, textSize: 'text-4xl' },
     lg: { width: 160, stroke: 10, textSize: 'text-5xl' },
   };
-  
+
   const colors = {
     cyan: { stroke: '#06b6d4', glow: 'rgba(6, 182, 212, 0.5)', text: 'text-cyan-400' },
     teal: { stroke: '#14b8a6', glow: 'rgba(20, 184, 166, 0.5)', text: 'text-teal-400' },
     orange: { stroke: '#f97316', glow: 'rgba(249, 115, 22, 0.5)', text: 'text-orange-400' },
   };
-  
+
   const config = sizes[size];
   const colorConfig = colors[color];
   const radius = (config.width - config.stroke) / 2;
@@ -82,13 +85,13 @@ function ScoreCircle({
             strokeDasharray={circumference}
             initial={{ strokeDashoffset: circumference }}
             animate={{ strokeDashoffset: offset }}
-            transition={{ duration: 1.5, ease: "easeOut" }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
             style={{ filter: `drop-shadow(0 0 10px ${colorConfig.glow})` }}
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className={`${config.textSize} font-bold ${colorConfig.text}`} style={{ textShadow: `0 0 20px ${colorConfig.glow}` }}>
-            {formatScore(score)}
+            {animatedScore.toFixed(1)}
           </span>
           <span className="text-sm text-zinc-500">/10</span>
         </div>
@@ -100,17 +103,19 @@ function ScoreCircle({
 
 // Potential Badge
 function PotentialBadge({ value }: { value: number }) {
+  const animatedValue = useCountUp(value, 400, 0, 1);
+
   return (
     <div className="flex flex-col items-center">
       <p className="text-xs text-zinc-400 uppercase tracking-wider mb-2">&nbsp;</p>
       <motion.div
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
-        transition={{ delay: 0.5, type: "spring" }}
+        transition={{ delay: 0.2, duration: 0.3, ease: "easeOut" }}
         className="w-24 h-24 rounded-full bg-cyan-500/20 border-2 border-cyan-500/40 flex flex-col items-center justify-center"
         style={{ boxShadow: '0 0 30px rgba(6, 182, 212, 0.3)' }}
       >
-        <span className="text-2xl font-bold text-cyan-400">+{value.toFixed(1)}</span>
+        <span className="text-2xl font-bold text-cyan-400">+{animatedValue.toFixed(1)}</span>
         <span className="text-xs text-cyan-400/80">possible</span>
       </motion.div>
     </div>
@@ -199,24 +204,26 @@ function LeverCard({ index, name, delta, timeline, isExpanded, onToggle }: {
 }
 
 // Category Score Card
-function CategoryScoreCard({ icon: Icon, label, score, priority }: {
+function CategoryScoreCard({ icon: Icon, label, score, priority, index = 0 }: {
   icon: any;
   label: string;
   score: number;
   priority: 'high' | 'medium' | 'low';
+  index?: number;
 }) {
   const priorityColors = {
     high: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
     medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
     low: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30',
   };
-  
+
   const scoreColor = score >= 7 ? 'text-cyan-400' : score >= 5 ? 'text-yellow-400' : 'text-orange-400';
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.1, duration: 0.3, ease: "easeOut" }}
       className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4"
     >
       <div className="flex items-center justify-between mb-3">
@@ -466,7 +473,7 @@ export function BodyResultsUI({ result, photoPreview }: BodyResultsUIProps) {
           {/* Category Scores Grid */}
           <div className="grid sm:grid-cols-2 gap-4">
             {categoryScores.map((cat, i) => (
-              <CategoryScoreCard key={i} {...cat} />
+              <CategoryScoreCard key={i} {...cat} index={i} />
             ))}
           </div>
         </>
